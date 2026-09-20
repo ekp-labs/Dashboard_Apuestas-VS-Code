@@ -4,7 +4,9 @@ Integrate three sources into common model
 import json, os
 from datetime import datetime
 
-base = r'f:\- APP DEV -\2. VS Code\Dashboard Apuestas\DashboardApuestas'
+from scraping.entity_resolution import match_player
+
+base = r'f:\- APP DEV -\\2. VS Code\\Dashboard Apuestas\\DashboardApuestas'
 
 # Load Understat 2023
 under_path = os.path.join(base, 'scraping/understat/data/processed/laliga_2023_players_api_20260917T233430Z.json')
@@ -55,27 +57,49 @@ for p in laliga_data.get('players',[]):
         'fouls_received':int(p.get('sy') or 0),
     })
 
-# Load FotMob normalized
+# Load FotMob normalized and aggregate per player
 fotmob_path = os.path.join(base, 'scraping/fotmob/data/processed/fotmob_laliga_normalized_20260918T021147Z.json')
 with open(fotmob_path,'r',encoding='utf-8') as f:
     fotmob_records = json.load(f)
 
-# Aggregate FotMob per player by metric
 fotmob_agg = {}
 for rec in fotmob_records:
-    key = (rec['player_name'].lower(), rec['team'].lower())
+    # Use normalized key for aggregation to be more robust
+    from scraping.entity_resolution import normalize_name
+    key = (normalize_name(rec.get('player_name','')), normalize_name(rec.get('team','')))
     if key not in fotmob_agg:
         fotmob_agg[key] = {
             'source':'fotmob',
-            'season':rec['season'],
+            'season':rec.get('season'),
             'league':'laliga',
-            'player_name':rec['player_name'],
-            'team':rec['team'],
+            'player_name':rec.get('player_name'),
+            'team':rec.get('team'),
             'metrics':{}
         }
-    fotmob_agg[key]['metrics'][rec['metric']] = rec['value']
+    fotmob_agg[key]['metrics'][rec.get('metric')] = rec.get('value')
 
 fotmob_players = list(fotmob_agg.values())
+
+# Matching summary using entity resolution
+laliga_matched = 0
+fotmob_matched = 0
+unmatched = []
+
+for up in under_players:
+    # try match LaLiga
+    match_laliga, _ = match_player(up, laliga_players, team_a_field='team', team_b_field='team', threshold=0.85)
+    if match_laliga:
+        laliga_matched += 1
+    # try match FotMob
+    match_fotmob, _ = match_player(up, fotmob_players, team_a_field='team', team_b_field='team', threshold=0.85)
+    if match_fotmob:
+        fotmob_matched += 1
+    if not match_laliga and not match_fotmob:
+        unmatched.append({
+            'player_name': up.get('player_name'),
+            'team': up.get('team'),
+            'source': 'understat'
+        })
 
 # Combine
 combined = {
@@ -92,7 +116,22 @@ out_path = os.path.join(out_dir, f'dashboard_players_integrated_{datetime.utcnow
 with open(out_path,'w',encoding='utf-8') as f:
     json.dump(combined, f, ensure_ascii=False, indent=2)
 
+# Save unmatched report
+unmatched_path = os.path.join(out_dir, f'unmatched_players_integrate_{datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")}.json')
+with open(unmatched_path,'w',encoding='utf-8') as f:
+    json.dump({
+        'generated_at': datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'),
+        'total_understat_players': len(under_players),
+        'laliga_matches': laliga_matched,
+        'fotmob_matches': fotmob_matched,
+        'unmatched_players': unmatched
+    }, f, ensure_ascii=False, indent=2)
+
 print('Integrated dataset saved to', out_path)
 print('Understat players:', len(under_players))
 print('LaLiga.com players:', len(laliga_players))
 print('FotMob players aggregated:', len(fotmob_players))
+print('LaLiga matches from Understat:', laliga_matched)
+print('FotMob matches from Understat:', fotmob_matched)
+print('Unmatched players:', len(unmatched))
+print('Unmatched file:', unmatched_path)
