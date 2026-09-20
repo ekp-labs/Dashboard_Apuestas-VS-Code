@@ -7,6 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Environment variables
+.env
+.env.local
+
 node_modules
 dist
 dist-ssr
@@ -22,3 +26,30 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Scraping processed data and integrated outputs
+scraping/**/data/processed/**
+scraping/**/data/raw/**
+data/integrated/**
+data/raw/**
+*.json
+!package.json
+!package-lock.json
+
+# Misc
+coverage/
+htmlcov/
