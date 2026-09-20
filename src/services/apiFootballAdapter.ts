@@ -5,29 +5,21 @@ export interface ApiFootballFixture {
   goals?: { home: number | null; away: number | null };
 }
 
-const BASE = 'https://v3.football.api-sports.io';
-
-import { getApiKeyPool } from './apiKeyPool';
 import { getCached, setCached } from './fixtureCacheService';
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000';
 
 const cache = new Map<string, { data: any; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 
-async function fetchWithPool(path: string, params: Record<string,string> = {}): Promise<any> {
-  const keys = getApiKeyPool('apiFootball');
-  if (keys.length === 0) throw new Error('API-Football keys not configured');
-  
-  for (const key of keys) {
-    const url = new URL(`${BASE}${path}`);
-    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString(), {
-      headers: { 'x-apisports-key': key },
-    });
-    if (res.status === 429) continue; // rotate
-    if (!res.ok) continue; // try next key
-    return res.json();
-  }
-  throw new Error('API-Football pool exhausted');
+async function fetchFromBackend(path: string, params: Record<string,string> = {}): Promise<any> {
+  const url = new URL(`${API_BASE}${path}`);
+  Object.entries(params).forEach(([k,v]) => {
+    if (v !== undefined && v !== '') url.searchParams.set(k, v);
+  });
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`Backend responded ${res.status}`);
+  return res.json();
 }
 
 export async function getFixtures({ leagueId, status = 'NS', season } = {}): Promise<ApiFootballFixture[]> {
@@ -48,19 +40,14 @@ export async function getFixtures({ leagueId, status = 'NS', season } = {}): Pro
   }
 
   try {
-    const res = await fetchWithPool(`/fixtures`, { league: String(leagueId ?? ''), season: currentSeason, status });
-    if (res?.errors && Object.keys(res.errors).length > 0) {
-      const errMsg = `API-Football error: ${JSON.stringify(res.errors)}`;
-      console.error('[apiFootballAdapter] getFixtures error', res.errors);
-      throw new Error(errMsg);
-    }
-    const data = res.response || [];
+    const res = await fetchFromBackend(`/api/fixtures`, { leagueId: String(leagueId ?? ''), season: currentSeason, status });
+    const data = res?.response || res || [];
     cache.set(inMemKey, { data, ts: now });
     setCached(cacheKey, data, 24 * 60 * 60 * 1000);
     if (typeof window !== 'undefined') {
       localStorage.setItem('ff_last_update', Date.now().toString());
     }
-    console.info('[apiFootballAdapter] getFixtures OK', { leagueId, status, season: currentSeason, count: data.length });
+    console.info('[apiFootballAdapter] getFixtures OK via backend', { leagueId, status, season: currentSeason, count: data.length });
     return data;
   } catch (e) {
     console.warn('[apiFootballAdapter] getFixtures fallback to mock', e);
@@ -95,5 +82,6 @@ export async function getFixtures({ leagueId, status = 'NS', season } = {}): Pro
 }
 
 export function isApiFootballConfigured() {
-  return getApiKeyPool('apiFootball').length > 0;
+  // Configuración ahora se gestiona en el backend
+  return true;
 }
