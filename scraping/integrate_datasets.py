@@ -1,10 +1,11 @@
 """
 Integrate three sources into common model
 """
-import json, os
+import json, os, sys
 from datetime import datetime
 
-from scraping.entity_resolution import match_player
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from entity_resolution import match_player, normalize_name
 
 base = r'f:\- APP DEV -\\2. VS Code\\Dashboard Apuestas\\DashboardApuestas'
 
@@ -65,7 +66,6 @@ with open(fotmob_path,'r',encoding='utf-8') as f:
 fotmob_agg = {}
 for rec in fotmob_records:
     # Use normalized key for aggregation to be more robust
-    from scraping.entity_resolution import normalize_name
     key = (normalize_name(rec.get('player_name','')), normalize_name(rec.get('team','')))
     if key not in fotmob_agg:
         fotmob_agg[key] = {

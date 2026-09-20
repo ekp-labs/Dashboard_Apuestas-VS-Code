@@ -1,10 +1,11 @@
 """
 Merge three sources into common season 2023-24 model where possible
 """
-import json, os
+import json, os, sys
 from datetime import datetime
 
-from scraping.entity_resolution import match_player
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from entity_resolution import match_player
 
 base = r'f:\- APP DEV -\\2. VS Code\\Dashboard Apuestas\\DashboardApuestas'
 out_dir = os.path.join(base, 'data', 'integrated')
