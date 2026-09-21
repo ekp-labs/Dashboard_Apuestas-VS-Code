@@ -1,0 +1,1 @@
+Scripts de diagnóstico usados para determinar que LaLiga.com no tiene endpoint reproducible para temporadas históricas (datos embebidos vía SSR de Next.js) y para depurar el parsing de FotMob season 21053. Ver también la sección 'Reglas de datos' en el README principal.
